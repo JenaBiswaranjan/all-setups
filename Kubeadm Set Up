@@ -71,13 +71,24 @@ mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ================================================
+
+
+
 13...kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
 
-14...kubeadm token create --print-join-command
+16....kubeadm token create --print-join-command
+===========================================================================
+14....before   copy this token  and paste worker node 
+Check the Current Value of ip_forward
+First, confirm if ip_forward is set to 0:
+
+cat /proc/sys/net/ipv4/ip_forward
+If it returns 0, IP forwarding is disabled.
 
 
+15....Temporarily Enable IP Forwarding
+You can temporarily enable IP forwarding by running:
 
-
-
+sudo sysctl -w net.ipv4.ip_forward=1
 
 
