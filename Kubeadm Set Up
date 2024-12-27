@@ -1,37 +1,37 @@
+
 Master node is t2.midium and worker node is t2.micro
 Both are ubuntu os
-
-
+=================================================================================================================================================
 Both Master Node and Worker node
 1..  Update the apt package index and install packages needed to use the Kubernetes apt repository:
-
 sudo apt-get update
-# apt-transport-https may be a dummy package; if so, you can skip that package
-sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+===================================================================================================================================================
+2----#Create configuration file for containerd:
+$ cat <<EOF | sudo tee /etc/modules-load.d/containerd.conf overlay br_netfilter 
+EOF
+===================================================================
+3 ---  #Load modules:
 
-2..   Download the public signing key for the Kubernetes package repositories. The same signing key is used for all repositories so you can disregard the version in the URL:
-# If the directory `/etc/apt/keyrings` does not exist, it should be created before the curl command, read the note below.
-# sudo mkdir -p -m 755 /etc/apt/keyrings
+$ sudo modprobe overlay
+$ sudo modprobe br_netfilter
+==================================================================================================
+4--===#Set system configurations for Kubernetes networking:
 
-curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-
-3...  Add the appropriate Kubernetes apt repository. Please note that this repository have packages only for Kubernetes 1.32; for other Kubernetes minor versions, you need to change the Kubernetes minor version in the URL to match your desired minor version (you should also check that you are reading the documentation for the version of Kubernetes that you plan to install).
-# This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
-
-echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-
-4..  Update the apt package index, install kubelet, kubeadm and kubectl, and pin their version:
-
-sudo apt-get update
-sudo apt-get install -y kubelet kubeadm kubectl
-sudo apt-mark hold kubelet kubeadm kubectl
-
-5....(Optional) Enable the kubelet service before running kubeadm:
-sudo systemctl enable --now kubelet
-
+$ cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes-cri.conf
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+EOF
+========================================
+5=======
+#Apply new settings:
+$ sudo sysctl --system
+================================
 6..Install Required Packages:
 sudo apt update
 sudo apt install -y containerd
+
+======================
 
 7..Configure containerd: Create the default configuration file for containerd:
 
@@ -52,43 +52,88 @@ sudo systemctl enable containerd
 Check the status of containerd to ensure it's running:
 sudo systemctl status containerd
 If it's running, you should see "active (running)".
+============================================
+11===#Disable swap:
+$ sudo swapoff -a
+================================================
+12 ==#Disable swap on startup in /etc/fstab:
+$ sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+==================================
+13=====
+# apt-transport-https may be a dummy package; if so, you can skip that package
+sudo apt-get install -y apt-transport-https ca-certificates curl gpg
+====================================================================================
+14=====   Download the public signing key for the Kubernetes package repositories. The same signing key is used for all repositories so you can disregard the version in the URL:
+# If the directory `/etc/apt/keyrings` does not exist, it should be created before the curl command, read the note below.
+# sudo mkdir -p -m 755 /etc/apt/keyrings
+curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.32/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
-11 : Retry kubeadm init
+14 ====  Add the appropriate Kubernetes apt repository. Please note that this repository have packages only for Kubernetes 1.32; for other Kubernetes minor versions, you need to change the Kubernetes minor version in the URL to match your desired minor version (you should also check that you are reading the documentation for the version of Kubernetes that you plan to install).
+# This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
+echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.32/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+=================================================================
+16===
+Add Kubernetes to repository list:
+
+$ cat <<EOF | sudo tee /etc/apt/sources.list.d/kubernetes.list
+deb https://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+============================================================
+17
+Update the apt package index, install kubelet, kubeadm and kubectl, and pin their version:
+
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+=================
+18....(Optional) Enable the kubelet service before running kubeadm:
+sudo systemctl enable --now kubelet
+
+====================================================================================
+19=== : Retry kubeadm init
 Now, try running the Kubernetes initialization command again:
 sudo kubeadm init
 
 to show 
 ------------
+22===
 Your Kubernetes control-plane has initialized successfully!
 kubeadm join 172.31.45.155:6443 --token f6g263.qa8utjmgxn85y9eg \
         --discovery-token-ca-cert-hash sha256:4d36e9de208847b148380e62937ae5f6325e6e9b22a09e648049b07330fd8b1d
 And  copy this token  and paste worker node 
 ===========================
+20===
 Note : Before   copy this token  and paste worker node 
-12..
+..
 some command  will write  in master node are 
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ================================================
+21====
+Install the Calico Network Add-On -
 
-
+# On the Control Plane Node, install Calico Networking:
 
 13...kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
 
 16....kubeadm token create --print-join-command
 ===========================================================================
-14....before   copy this token  and paste worker node 
-Check the Current Value of ip_forward
-First, confirm if ip_forward is set to 0:
 
+                 {    End    }
+
+
+optional
+============================================================================
+....before   copy this token  and paste worker node 
+Check the Current Value of ip_forward
+
+First, confirm if ip_forward is set to 0:
 cat /proc/sys/net/ipv4/ip_forward
 If it returns 0, IP forwarding is disabled.
 
-
-15....Temporarily Enable IP Forwarding
+....Temporarily Enable IP Forwarding
 You can temporarily enable IP forwarding by running:
 
 sudo sysctl -w net.ipv4.ip_forward=1
-
-
+=======================================================================================
